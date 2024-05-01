@@ -11,16 +11,18 @@ import net.minecraft.state.property.Properties;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
-import xd.arkosammy.creeperhealing.config.ReplaceMapConfig;
 import xd.arkosammy.creeperhealing.explosions.AbstractExplosionEvent;
+import xd.arkosammy.creeperhealing.config.ReplaceMapTable;
 import xd.arkosammy.creeperhealing.util.ExplosionUtils;
+
+import java.util.Optional;
 
 public class DoubleAffectedBlock extends AffectedBlock {
 
     public static final String TYPE = "double_affected_block";
 
     public DoubleAffectedBlock(BlockPos pos, BlockState state, RegistryKey<World> registryKey, long affectedBlockTimer, boolean placed){
-        super(pos, state, registryKey, affectedBlockTimer, placed);
+        super(pos, state, registryKey, null, affectedBlockTimer, placed);
     }
 
     @Override
@@ -33,7 +35,8 @@ public class DoubleAffectedBlock extends AffectedBlock {
 
         BlockState state = this.getState();
         String blockIdentifier = Registries.BLOCK.getId(state.getBlock()).toString();
-        if(ReplaceMapConfig.getReplaceMap().containsKey(blockIdentifier)){
+        Optional<String> replaceMapValueOptional = ReplaceMapTable.getFromKey(blockIdentifier);
+        if(replaceMapValueOptional.isPresent()){
             super.tryHealing(server, currentExplosionEvent);
             return;
         }
@@ -56,19 +59,18 @@ public class DoubleAffectedBlock extends AffectedBlock {
         BlockState secondHalfState = firstHalfState.getBlock().getStateWithProperties(firstHalfState).with(Properties.DOUBLE_BLOCK_HALF, secondHalf);
         BlockPos secondHalfPos = secondHalfState.get(Properties.DOUBLE_BLOCK_HALF).equals(DoubleBlockHalf.UPPER) ? firstHalfPos.up() :  firstHalfPos.down();
 
-        if(this.shouldHealBlock(world, secondHalfPos)) {
-            BlockState stateToPushFrom = firstHalfState.get(Properties.DOUBLE_BLOCK_HALF).equals(DoubleBlockHalf.LOWER) ? firstHalfState : secondHalfState;
-            BlockPos posToPushFrom = firstHalfState.get(Properties.DOUBLE_BLOCK_HALF).equals(DoubleBlockHalf.LOWER) ? firstHalfPos : firstHalfPos.down();
-
-            if(stateToPushFrom.isSolidBlock(world, posToPushFrom)) {
-                ExplosionUtils.pushEntitiesUpwards(world, posToPushFrom, true);
-            }
-            world.setBlockState(firstHalfPos, firstHalfState);
-            world.setBlockState(secondHalfPos, secondHalfState);
-
-            if(ExplosionUtils.shouldPlayBlockPlacementSound(world, firstHalfState)) {
-                world.playSound(null, firstHalfPos, firstHalfState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, firstHalfState.getSoundGroup().getVolume(), firstHalfState.getSoundGroup().getPitch());
-            }
+        if(!this.shouldHealBlock(world, secondHalfPos)){
+            return;
+        }
+        BlockState stateToPushFrom = firstHalfState.get(Properties.DOUBLE_BLOCK_HALF).equals(DoubleBlockHalf.LOWER) ? firstHalfState : secondHalfState;
+        BlockPos posToPushFrom = firstHalfState.get(Properties.DOUBLE_BLOCK_HALF).equals(DoubleBlockHalf.LOWER) ? firstHalfPos : firstHalfPos.down();
+        if(stateToPushFrom.isSolidBlock(world, posToPushFrom)) {
+            ExplosionUtils.pushEntitiesUpwards(world, posToPushFrom, true);
+        }
+        world.setBlockState(firstHalfPos, firstHalfState);
+        world.setBlockState(secondHalfPos, secondHalfState);
+        if(ExplosionUtils.shouldPlayBlockPlacementSound(world, firstHalfState)) {
+            world.playSound(null, firstHalfPos, firstHalfState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, firstHalfState.getSoundGroup().getVolume(), firstHalfState.getSoundGroup().getPitch());
         }
         currentExplosionEvent.markAsPlaced(secondHalfState, secondHalfPos, world);
     }
@@ -99,18 +101,19 @@ public class DoubleAffectedBlock extends AffectedBlock {
             }
         }
 
-        if (this.shouldHealBlock(world, secondHalfPos)) {
-            if(firstHalfState.isSolidBlock(world, firstHalfPos)) {
-                ExplosionUtils.pushEntitiesUpwards(world, firstHalfPos, false);
-            }
-            if(secondHalfState.isSolidBlock(world, secondHalfPos)) {
-                ExplosionUtils.pushEntitiesUpwards(world, secondHalfPos, false);
-            }
-            world.setBlockState(firstHalfPos, firstHalfState);
-            world.setBlockState(secondHalfPos, secondHalfState);
-            if (ExplosionUtils.shouldPlayBlockPlacementSound(world, firstHalfState)) {
-                world.playSound(null, firstHalfPos, firstHalfState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, firstHalfState.getSoundGroup().getVolume(), firstHalfState.getSoundGroup().getPitch());
-            }
+        if(!this.shouldHealBlock(world, secondHalfPos)) {
+            return;
+        }
+        if(firstHalfState.isSolidBlock(world, firstHalfPos)) {
+            ExplosionUtils.pushEntitiesUpwards(world, firstHalfPos, false);
+        }
+        if(secondHalfState.isSolidBlock(world, secondHalfPos)) {
+            ExplosionUtils.pushEntitiesUpwards(world, secondHalfPos, false);
+        }
+        world.setBlockState(firstHalfPos, firstHalfState);
+        world.setBlockState(secondHalfPos, secondHalfState);
+        if (ExplosionUtils.shouldPlayBlockPlacementSound(world, firstHalfState)) {
+            world.playSound(null, firstHalfPos, firstHalfState.getSoundGroup().getPlaceSound(), SoundCategory.BLOCKS, firstHalfState.getSoundGroup().getVolume(), firstHalfState.getSoundGroup().getPitch());
         }
         currentExplosionEvent.markAsPlaced(secondHalfState, secondHalfPos, world);
     }

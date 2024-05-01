@@ -10,7 +10,8 @@ import net.minecraft.util.math.Vec3i;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.NotNull;
 import xd.arkosammy.creeperhealing.blocks.AffectedBlock;
-import xd.arkosammy.creeperhealing.config.PreferencesConfig;
+import xd.arkosammy.creeperhealing.config.ConfigManager;
+import xd.arkosammy.creeperhealing.config.settings.ConfigSettings;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -18,7 +19,9 @@ import java.util.stream.Collectors;
 public final class ExplosionUtils {
 
     private ExplosionUtils(){}
-    public static final ThreadLocal<Boolean> SHOULD_DROP_ITEMS_THREAD_LOCAL = ThreadLocal.withInitial(() -> true);
+    public static final ThreadLocal<Boolean> DROP_EXPLOSION_ITEMS = ThreadLocal.withInitial(() -> true);
+    public static final ThreadLocal<Boolean> DROP_BLOCK_INVENTORY_ITEMS = ThreadLocal.withInitial(() -> true);
+    public static final ThreadLocal<Boolean> FALLING_BLOCK_SCHEDULE_TICK = ThreadLocal.withInitial(() -> true);
 
      public static void pushEntitiesUpwards(World world, BlockPos pos, boolean isTallBlock) {
         int amountToPush = isTallBlock ? 2 : 1;
@@ -129,7 +132,7 @@ public final class ExplosionUtils {
     }
 
     public static boolean shouldPlayBlockPlacementSound(World world, BlockState state) {
-        return !world.isClient && !state.isAir() && PreferencesConfig.BLOCK_PLACEMENT_SOUND_EFFECT.getEntry().getValue();
+        return !world.isClient && !state.isAir() && ConfigManager.getInstance().getAsBooleanSetting(ConfigSettings.BLOCK_PLACEMENT_SOUND_EFFECT.getId()).getValue();
     }
 
 }

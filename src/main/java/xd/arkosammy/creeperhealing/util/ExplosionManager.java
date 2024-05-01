@@ -10,16 +10,6 @@ import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.TntEntity;
-import net.minecraft.entity.boss.WitherEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageTypes;
-import net.minecraft.entity.decoration.EndCrystalEntity;
-import net.minecraft.entity.mob.CreeperEntity;
-import net.minecraft.entity.mob.GhastEntity;
-import net.minecraft.entity.vehicle.TntMinecartEntity;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.MinecraftServer;
@@ -29,9 +19,11 @@ import net.minecraft.world.World;
 import net.minecraft.world.explosion.Explosion;
 import xd.arkosammy.creeperhealing.CreeperHealing;
 import xd.arkosammy.creeperhealing.blocks.AffectedBlock;
-import xd.arkosammy.creeperhealing.config.*;
+import xd.arkosammy.creeperhealing.config.settings.ConfigSettings;
 import xd.arkosammy.creeperhealing.explosions.*;
 import xd.arkosammy.creeperhealing.explosions.ducks.ExplosionAccessor;
+import xd.arkosammy.creeperhealing.config.ConfigManager;
+import xd.arkosammy.creeperhealing.config.settings.BlockPlacementDelaySetting;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -72,18 +64,22 @@ public class ExplosionManager {
     }
 
     public void processExplosion(Explosion explosion){
-        if(!shouldHealExplosion(explosion)){
+        if(!((ExplosionAccessor)explosion).creeper_healing$shouldHeal()){
             return;
         }
         World world = ((ExplosionAccessor) explosion).creeper_healing$getWorld();
         List<AffectedBlock> affectedBlocks = new ArrayList<>();
         for(BlockPos affectedPos : explosion.getAffectedBlocks()){
+            // Hardcoded exception. Place before all logic
             BlockState affectedState = world.getBlockState(affectedPos);
+            if(ExcludedBlocks.isExcluded(affectedState)) {
+                continue;
+            }
             if (affectedState.isAir() || affectedState.getBlock().equals(Blocks.TNT) || affectedState.isIn(BlockTags.FIRE)) {
                 continue; // Skip the current iteration if the block affectedState is air, TNT, or fire
             }
             String blockIdentifier = Registries.BLOCK.getId(affectedState.getBlock()).toString();
-            if (!PreferencesConfig.ENABLE_WHITELIST.getEntry().getValue() || WhitelistConfig.getWhitelist().contains(blockIdentifier)) {
+            if (!ConfigManager.getInstance().getAsBooleanSetting(ConfigSettings.ENABLE_WHITELIST.getId()).getValue() || ConfigManager.getInstance().getAsStringListSetting(ConfigSettings.WHITELIST.getId()).getValue().contains(blockIdentifier)) {
                 affectedBlocks.add(AffectedBlock.newAffectedBlock(affectedPos, affectedState, world));
             }
         }
@@ -101,33 +97,6 @@ public class ExplosionManager {
             this.explosionEvents.add(combineCollidingExplosions(collidingExplosions, explosionEvent, world));
         }
     }
-
-    private boolean shouldHealExplosion(Explosion explosion){
-        LivingEntity causingLivingEntity = explosion.getCausingEntity();
-        Entity causingEntity = explosion.getEntity();
-        DamageSource damageSource = ((ExplosionAccessor)explosion).creeper_healing$getDamageSource();
-        if(explosion.getAffectedBlocks().isEmpty()){
-            return false;
-        }
-        boolean shouldHealExplosion = false;
-        if(causingLivingEntity instanceof CreeperEntity && ExplosionSourceConfig.HEAL_CREEPER_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (causingLivingEntity instanceof GhastEntity && ExplosionSourceConfig.HEAL_GHAST_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (causingLivingEntity instanceof WitherEntity && ExplosionSourceConfig.HEAL_WITHER_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (causingEntity instanceof TntEntity && ExplosionSourceConfig.HEAL_TNT_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (causingEntity instanceof TntMinecartEntity && ExplosionSourceConfig.HEAL_TNT_MINECART_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (damageSource.isOf(DamageTypes.BAD_RESPAWN_POINT) && ExplosionSourceConfig.HEAL_BED_AND_RESPAWN_ANCHOR_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        } else if (causingEntity instanceof EndCrystalEntity && ExplosionSourceConfig.HEAL_END_CRYSTAL_EXPLOSIONS.getEntry().getValue()){
-            shouldHealExplosion = true;
-        }
-        return shouldHealExplosion;
-    }
-
 
     // An explosion collides with another if the square of the distance between their centers is less than or equal to the sum of their radii
     private Set<AbstractExplosionEvent> getCollidingExplosions(List<BlockPos> affectedPositions){
@@ -161,7 +130,7 @@ public class ExplosionManager {
         } else {
             combinedExplosionEvent = new DefaultExplosionEvent(sortedAffectedBlocks, newestExplosion.getHealTimer(), newestExplosion.getBlockCounter());
         }
-        combinedExplosionEvent.getAffectedBlocks().forEach(affectedBlock -> affectedBlock.setTimer(DelaysConfig.getBlockPlacementDelayAsTicks()));
+        combinedExplosionEvent.getAffectedBlocks().forEach(affectedBlock -> affectedBlock.setTimer(BlockPlacementDelaySetting.getAsTicks()));
         combinedExplosionEvent.setupExplosion(world);
         return combinedExplosionEvent;
     }
@@ -211,16 +180,16 @@ public class ExplosionManager {
 
     public void storeExplosions(MinecraftServer server){
         Path scheduledExplosionsFilePath = server.getSavePath(WorldSavePath.ROOT).resolve("scheduled-explosions.json");
-        DataResult<JsonElement> encodedScheduledExplosions = CODEC.encodeStart(JsonOps.INSTANCE, this);
+        DataResult<JsonElement> encodedScheduledExplosions = CODEC.encodeStart(JsonOps.COMPRESSED, this);
         if(encodedScheduledExplosions.result().isPresent()){
             JsonElement scheduledExplosionsJson = encodedScheduledExplosions.resultOrPartial(CreeperHealing.LOGGER::error).orElseThrow();
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            Gson gson = new GsonBuilder().create();
             String jsonString = gson.toJson(scheduledExplosionsJson);
             try(BufferedWriter bf = Files.newBufferedWriter(scheduledExplosionsFilePath)){
                 bf.write(jsonString);
                 CreeperHealing.LOGGER.info("Stored {} explosion event(s) to {}", this.explosionEvents.size(), scheduledExplosionsFilePath);
             } catch (IOException e){
-                CreeperHealing.LOGGER.error("Error storing explosion event(s): " + e);
+                CreeperHealing.LOGGER.error("Error storing explosion event(s): {}", e.toString());
             }
         } else {
             CreeperHealing.LOGGER.error("Error storing creeper explosion(s): No value present");
@@ -233,15 +202,15 @@ public class ExplosionManager {
             if (Files.exists(scheduledExplosionsFilePath)) {
                 try(BufferedReader br = Files.newBufferedReader(scheduledExplosionsFilePath)){
                     JsonElement scheduledExplosionsJson = JsonParser.parseReader(br);
-                    DataResult<ExplosionManager> decodedExplosionManger = CODEC.parse(JsonOps.INSTANCE, scheduledExplosionsJson);
-                    decodedExplosionManger.resultOrPartial(error -> CreeperHealing.LOGGER.error("Error reading scheduled explosions: {}", error)).ifPresent(explosionManager -> instance = explosionManager);
+                    DataResult<ExplosionManager> decodedExplosionManger = CODEC.parse(JsonOps.COMPRESSED, scheduledExplosionsJson);
+                    decodedExplosionManger.resultOrPartial(error -> CreeperHealing.LOGGER.error("Error reading decoded scheduled explosions: {}", error)).ifPresent(explosionManager -> instance = explosionManager);
                 }
             } else {
                 CreeperHealing.LOGGER.warn("Scheduled explosions file not found. Creating new one at {}", scheduledExplosionsFilePath);
                 Files.createFile(scheduledExplosionsFilePath);
             }
         } catch (IOException e){
-            CreeperHealing.LOGGER.error("Error reading scheduled explosions: " + e);
+            CreeperHealing.LOGGER.error("Error reading scheduled explosions: {}", e.toString());
         }
 
     }
@@ -250,7 +219,7 @@ public class ExplosionManager {
         for(AbstractExplosionEvent explosionEvent : this.explosionEvents){
             if(explosionEvent instanceof DefaultExplosionEvent) {
                 for (int i = explosionEvent.getBlockCounter() + 1; i < explosionEvent.getAffectedBlocks().size(); i++) {
-                    explosionEvent.getAffectedBlocks().get(i).setTimer(DelaysConfig.getBlockPlacementDelayAsTicks());
+                    explosionEvent.getAffectedBlocks().get(i).setTimer(BlockPlacementDelaySetting.getAsTicks());
                 }
             }
         }

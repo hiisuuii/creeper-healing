@@ -8,17 +8,19 @@ import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xd.arkosammy.creeperhealing.config.ConfigManager;
+import xd.arkosammy.creeperhealing.config.ConfigTables;
+import xd.arkosammy.creeperhealing.config.settings.ConfigSettings;
 import xd.arkosammy.creeperhealing.util.ExplosionManager;
 import xd.arkosammy.creeperhealing.commands.CommandManager;
 
 public class CreeperHealing implements ModInitializer {
 
-    public static final Logger LOGGER = LoggerFactory.getLogger("Creeper-Healing");
+	public static final String MOD_ID = "creeper-healing";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	// TODO: Remake entire config system somehow. Make it more generic?
 	@Override
 	public void onInitialize() {
-		ConfigManager.init();
+		ConfigManager.init(ConfigTables.getConfigTables(), ConfigSettings.getSettingBuilders(), MOD_ID);
 		ServerLifecycleEvents.SERVER_STARTING.register(CreeperHealing::onServerStarting);
 		ServerLifecycleEvents.SERVER_STOPPING.register(CreeperHealing::onServerStopping);
 		ServerTickEvents.END_SERVER_TICK.register(server -> ExplosionManager.getInstance().tick(server));
@@ -34,7 +36,7 @@ public class CreeperHealing implements ModInitializer {
 	private static void onServerStopping(MinecraftServer server) {
 		ExplosionManager.getInstance().storeExplosions(server);
 		ExplosionManager.getInstance().getExplosionEvents().clear();
-		ConfigManager.updateConfigFile();
+		ConfigManager.getInstance().saveToFile();
 	}
 
 }
