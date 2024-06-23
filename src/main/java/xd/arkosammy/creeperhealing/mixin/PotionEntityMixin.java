@@ -14,10 +14,11 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import xd.arkosammy.creeperhealing.config.settings.ConfigSettings;
+import xd.arkosammy.creeperhealing.config.ConfigSettings;
+import xd.arkosammy.creeperhealing.config.ConfigUtils;
 import xd.arkosammy.creeperhealing.explosions.AbstractExplosionEvent;
-import xd.arkosammy.creeperhealing.config.ConfigManager;
 import xd.arkosammy.creeperhealing.util.ExplosionManager;
+import xd.arkosammy.monkeyconfig.settings.BooleanSetting;
 
 import java.util.List;
 
@@ -36,7 +37,9 @@ public abstract class PotionEntityMixin {
         if(potionHitPosition == null){
             return;
         }
-        if (statusEffects.contains(StatusEffects.INSTANT_HEALTH) && ConfigManager.getInstance().getAsBooleanSetting(ConfigSettings.HEAL_ON_HEALING_POTION_SPLASH.getId()).getValue()){
+        boolean healOnHealingPotion = ConfigUtils.getSettingValue(ConfigSettings.HEAL_ON_HEALING_POTION_SPLASH.getSettingLocation(), BooleanSetting.class);
+        boolean healOnRegenerationPotion = ConfigUtils.getSettingValue(ConfigSettings.HEAL_ON_REGENERATION_POTION_SPLASH.getSettingLocation(), BooleanSetting.class);
+        if (statusEffects.contains(StatusEffects.INSTANT_HEALTH) && healOnHealingPotion){
             for(AbstractExplosionEvent explosionEvent : ExplosionManager.getInstance().getExplosionEvents()){
                 boolean potionHitExplosion = explosionEvent.getAffectedBlocks().stream().anyMatch(affectedBlock -> affectedBlock.getPos().equals(potionHitPosition));
                 if(potionHitExplosion){
@@ -44,7 +47,7 @@ public abstract class PotionEntityMixin {
                     explosionEvent.getAffectedBlocks().forEach(affectedBlock -> affectedBlock.setTimer(1));
                 }
             }
-        } else if (statusEffects.contains(StatusEffects.REGENERATION) && ConfigManager.getInstance().getAsBooleanSetting(ConfigSettings.HEAL_ON_REGENERATION_POTION_SPLASH.getId()).getValue()){
+        } else if (statusEffects.contains(StatusEffects.REGENERATION) && healOnRegenerationPotion){
             for(AbstractExplosionEvent explosionEvent : ExplosionManager.getInstance().getExplosionEvents()){
                 boolean potionHitExplosion = explosionEvent.getAffectedBlocks().stream().anyMatch(affectedBlock -> affectedBlock.getPos().equals(potionHitPosition));
                 if(potionHitExplosion){
