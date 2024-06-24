@@ -31,7 +31,7 @@ public abstract class BlockMixin {
 
     @SuppressWarnings("UnreachableCode")
     @ModifyReturnValue(method = "shouldDropItemsOnExplosion", at = @At("RETURN"))
-    private boolean shouldExplosionDropItems(boolean original, @Local Explosion explosion){
+    private boolean shouldExplosionDropItems(boolean original, @Local(argsOnly = true) Explosion explosion){
 
         // Hardcoded exception. Place before all other logic
         if(ExcludedBlocks.isExcluded((Block)(Object)this)) {
