@@ -13,7 +13,7 @@ import xd.arkosammy.creeperhealing.util.ExplosionUtils;
 public class FallingBlockMixin {
 
     @ModifyExpressionValue(method = "scheduledTick", at = @At(value = "INVOKE", target = "Lnet/minecraft/block/FallingBlock;canFallThrough(Lnet/minecraft/block/BlockState;)Z"))
-    private boolean onBlockAttemptedFall(boolean original, @Local BlockState blockState){
+    private boolean onBlockAttemptedFall(boolean original, @Local(argsOnly = true) BlockState blockState){
         // Hardcoded Exception. Place before all other logic
         if(ExcludedBlocks.isExcluded(blockState)){
             return original;
